@@ -1,6 +1,8 @@
-import random, math, os, imageio
+import random, math, os
+import imageio.v2 as imageio
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import logging
 
 # Define the number of cities
 NUM_CITIES = 100
@@ -9,7 +11,7 @@ NUM_CITIES = 100
 POPULATION_SIZE = 200
 
 # Define the number of generations
-NUM_GENERATIONS = 4000
+NUM_GENERATIONS = 2500
 
 # Define the mutation rate
 MUTATION_RATE = 0.01
@@ -31,7 +33,7 @@ MIN_VAL = 1
 MAX_VAL = 100
 
 # Set Random Generator Seed
-random.seed(42)
+random.seed(1998)
 
 # Define the cities with their locations (x and y)
 CITIES = [(random.sample(range(MIN_VAL, MAX_VAL + 1), 2)) for _ in range(NUM_CITIES)]
@@ -62,35 +64,41 @@ def initialize_population() -> list:
 def selection(population) -> list:
     """
     Define the selection function
-    Receives the X and returns Y
+    Receives the popluations and returns the selected individual by tournament selection
     """
     tournament = random.sample(population, TOURNAMENT_SIZE)
     best_individual = max(tournament, key=fitness)
     return best_individual
 
 def crossover(parent1, parent2):
-    """
-    Define the crossover function
-    Receives the 2 routes as parents and returns a child of the 2 parents. 
-    If the CROSSOVER_RATE is not reached, the parent1 is returned.
-    """
-    if random.uniform(0, 1) <= CROSSOVER_RATE:
+    if random.random() < CROSSOVER_RATE:
 
-        child = []
-        crossover_point = random.randint(1, NUM_CITIES - 2)
-        child[:crossover_point] = parent1[:crossover_point]
-        new_genes = [gene for gene in parent2 if gene not in child]
-        child = child + new_genes
+        child1 = []
+        child2 = []
+        crossover_point = random.randint(1, len(parent1) - 1)
 
-        return child
-               
+        child1[:crossover_point] = parent1[:crossover_point]
+        new_genes = [gene for gene in parent2 if gene not in child1]
+        child1 = child1 + new_genes
+
+        child2[:crossover_point] = parent2[:crossover_point]
+        new_genes = [gene for gene in parent1 if gene not in child2]
+        child2 = child2 + new_genes
+
+
     else:
-        return parent1
+        child1 = parent1
+        child2 = parent2
+
+    if (len(child1) != NUM_CITIES or len(child2) != NUM_CITIES):
+        logging.debug('CROSSOVER returned a child with a different number of genes')
+    
+    return child1, child2
 
 def mutation(individual):
     """
     Define the mutation function
-    Receives the X and returns Y
+    Receives the individual and returns the mutated individual
     """
     for i in range(len(individual) - 1):
         if random.random() < MUTATION_RATE:
@@ -156,7 +164,6 @@ def genetic_algorithm() -> None:
 
     """
     Define the genetic algorithm function
-    Receives the X and returns Y
     """
 
     population = initialize_population()
@@ -169,21 +176,27 @@ def genetic_algorithm() -> None:
         elites = sorted_population[:elite_size]
 
         new_population = elites
-        for _ in range(POPULATION_SIZE - elite_size):
-            parent1 = selection(population)
-            parent2 = selection(population)
+        while len(new_population) < POPULATION_SIZE:
+            
+            parent1 = selection(elites)
+            parent2 = selection(elites)
 
             # Verification made to ensure that the same individual will not be selected twice
             while parent1 == parent2:
                 parent2 = selection(population)
 
-            child = crossover(parent1, parent2)
-            child = mutation(child)
-            new_population.append(child)
+            parent1, parent2 = crossover(parent1, parent2)
+
+            new_population.append(parent1)
+            new_population.append(parent2)
+
+        for individual in new_population:
+            individual = mutation(individual)
+        
         population = new_population
 
         if len(population) != POPULATION_SIZE:
-            print('Population is shrinking!')
+            logging.warning('Population is shrinking!')
 
         best_individual = max(population, key=fitness)
         fitness_history.append(fitness(best_individual))
@@ -203,7 +216,6 @@ if __name__ == '__main__':
     best_route, fitness_history = genetic_algorithm()
 
     # Print the best route
-    print(best_route)
     plot_route(best_route, img_name='Best Route', show_plot=True)
 
     # Plot Fitness by generations
